@@ -23,6 +23,7 @@ const SNS_TOPIC_ARN = process.env.SNS_TOPIC_ARN || '';
 exports.getFiles = async (event) => {
   console.log('GET /files - Request:', JSON.stringify(event, null, 2));
   
+  // test
   try {
     const command = new ListObjectsV2Command({
       Bucket: BUCKET_NAME,
@@ -91,7 +92,7 @@ exports.getFiles = async (event) => {
  */
 exports.processEvent = async (event) => {
   console.log('Event received:', JSON.stringify(event, null, 2));
-  
+  // test
   try {
     // Handle SNS event
     if (event.Records && event.Records[0] && event.Records[0].EventSource === 'aws:sns') {
@@ -183,5 +184,3 @@ exports.handler = async (event, context) => {
   // Otherwise, treat as event-based invocation
   return await exports.processEvent(event);
 };
-
-// test
