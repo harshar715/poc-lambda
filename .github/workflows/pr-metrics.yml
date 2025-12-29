@@ -1,0 +1,67 @@
+name: PR Metrics Comparison
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+jobs:
+  compare-metrics:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+      issues: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: Checkout PR-Report
+        uses: actions/checkout@v3
+        with:
+          repository: ${{ secrets.PR_REPORT_REPO || 'your-org/PR-Report' }}
+          path: PR-Report
+          token: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+          cache: 'npm'
+          cache-dependency-path: PR-Report/package-lock.json
+      
+      - name: Install dependencies
+        working-directory: PR-Report
+        run: npm ci
+      
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION || 'us-east-1' }}
+      
+      - name: Run PR Metrics Comparison
+        working-directory: PR-Report
+        env:
+          AWS_REGION: ${{ secrets.AWS_REGION || 'us-east-1' }}
+          S3_BUCKET: ${{ secrets.S3_BUCKET }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          BASE_BRANCH: ${{ github.base_ref }}
+          HEAD_BRANCH: ${{ github.head_ref }}
+          REPO_PATH: ${{ github.workspace }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          STACK_PREFIX: ${{ secrets.STACK_PREFIX || 'dev' }}
+        run: node src/index.js
+      
+      - name: Upload report artifacts
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: pr-metrics-report
+          path: PR-Report/reports/*.json
+          if-no-files-found: ignore
+

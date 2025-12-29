@@ -1,0 +1,65 @@
+service: lambda-sample-app
+
+frameworkVersion: '>=3.0.0'
+
+provider:
+  name: aws
+  runtime: nodejs18.x
+  region: ${opt:region, 'us-east-1'}
+  stage: ${opt:stage, 'dev'}
+  environment:
+    BUCKET_NAME: ${self:service}-${self:provider.stage}-bucket
+    SNS_TOPIC_ARN: 
+      Ref: PocTopic
+  
+  iam:
+    role:
+      statements:
+        - Effect: Allow
+          Action:
+            - s3:ListBucket
+            - s3:GetObject
+            - s3:PutObject
+          Resource:
+            - "arn:aws:s3:::${self:provider.environment.BUCKET_NAME}"
+            - "arn:aws:s3:::${self:provider.environment.BUCKET_NAME}/*"
+        - Effect: Allow
+          Action:
+            - sns:Publish
+          Resource:
+            Ref: PocTopic
+
+functions:
+  # REST endpoint function
+  api:
+    handler: handler.getFiles
+    events:
+      - http:
+          path: files
+          method: get
+          cors: true
+    name: ${self:service}-${self:provider.stage}-api
+  
+  # Event-based function
+  eventProcessor:
+    handler: handler.processEvent
+    events:
+      - sns:
+          arn:
+            Ref: PocTopic
+          topicName: poc-lambda-topic
+    name: ${self:service}-${self:provider.stage}-event-processor
+
+resources:
+  Resources:
+    PocBucket:
+      Type: AWS::S3::Bucket
+      Properties:
+        BucketName: ${self:provider.environment.BUCKET_NAME}
+    
+    PocTopic:
+      Type: AWS::SNS::Topic
+      Properties:
+        TopicName: poc-lambda-topic-${self:provider.stage}
+        DisplayName: POC Lambda Topic
+

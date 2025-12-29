@@ -1,0 +1,10 @@
+node_modules/
+.env
+*.log
+.DS_Store
+.serverless/
+.aws-sam/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
