@@ -29,7 +29,7 @@ jobs:
         with:
           repository: ${{ secrets.PR_REPORT_REPO || 'your-org/PR-Report' }}
           path: PR-Report
-          token: ${{ secrets.GITHUB_TOKEN }}
+          token: ${{ secrets.PR_REPORT_TOKEN || secrets.GITHUB_TOKEN }}
       
       - name: Setup Node.js
         uses: actions/setup-node@v3
