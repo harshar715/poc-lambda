@@ -2,10 +2,11 @@ name: PR Metrics Comparison
 
 on:
   pull_request:
-    types: [opened, synchronize, reopened]
+    types: [opened, synchronize, reopened, closed]
 
 jobs:
   compare-metrics:
+    if: github.event.action != 'closed'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -40,6 +41,12 @@ jobs:
         working-directory: PR-Report
         run: npm install
       
+      - name: Install Serverless Framework
+        run: npm install -g serverless@3
+      
+      - name: Install service dependencies
+        run: npm install
+      
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v2
         with:
@@ -69,4 +76,53 @@ jobs:
           name: pr-metrics-report
           path: PR-Report/reports/*.json
           if-no-files-found: ignore
+
+  cleanup:
+    if: github.event.action == 'closed'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: Checkout PR-Report
+        uses: actions/checkout@v3
+        with:
+          repository: ${{ secrets.PR_REPORT_REPO || 'your-org/PR-Report' }}
+          path: PR-Report
+          token: ${{ secrets.PR_REPORT_TOKEN || secrets.GITHUB_TOKEN }}
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+      
+      - name: Install dependencies
+        working-directory: PR-Report
+        run: npm install
+      
+      - name: Install Serverless Framework
+        run: npm install -g serverless@3
+      
+      - name: Install service dependencies
+        run: npm install
+      
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION || 'us-east-1' }}
+      
+      - name: Cleanup PR Test Stack
+        working-directory: PR-Report
+        env:
+          AWS_REGION: ${{ secrets.AWS_REGION || 'us-east-1' }}
+          REPO_PATH: ${{ github.workspace }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+        run: node src/deployment/cleanup-pr.js
 
