@@ -49,7 +49,8 @@ exports.getFiles = async (event) => {
   try {
     // Simulate different scenarios
     if (scenario === 'client_error') {
-      // 4xx error - Bad Request
+      // 4xx error - Bad Request (return HTTP error, not Lambda exception)
+      // This will show up in API Gateway 4XXError metric, not Lambda Errors
       const errorType = Math.random() < 0.5 ? 400 : 404;
       return {
         statusCode: errorType,
@@ -67,6 +68,7 @@ exports.getFiles = async (event) => {
     
     if (scenario === 'server_error') {
       // 5xx error - Internal Server Error
+      // Throw exception to generate Lambda Error metric AND API Gateway 5XXError
       throw new Error('Simulated server error for testing');
     }
     
