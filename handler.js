@@ -32,6 +32,7 @@ const randomDelay = (min, max) => {
  * Returns various response types with random execution times for testing metrics
  */
 exports.getFiles = async (event) => {
+  // adding a test change
   console.log('GET /files - Request:', JSON.stringify(event, null, 2));
   
   // Generate random scenario for testing different metrics
