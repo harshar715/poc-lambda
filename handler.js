@@ -32,6 +32,7 @@ const randomDelay = (min, max) => {
  * Returns various response types with random execution times for testing metrics
  */
 exports.getFiles = async (event) => {
+  // adding a test change
   console.log('GET /files - Request:', JSON.stringify(event, null, 2));
   
   // Generate random scenario for testing different metrics
@@ -68,7 +69,8 @@ exports.getFiles = async (event) => {
     
     if (scenario === 'server_error') {
       // 5xx error - Internal Server Error
-      // Throw exception to generate Lambda Error metric AND API Gateway 5XXError
+      // Throw exception WITHOUT catching it so Lambda counts it as an error
+      // This will also generate API Gateway 5XXError metric
       throw new Error('Simulated server error for testing');
     }
     
@@ -104,6 +106,11 @@ exports.getFiles = async (event) => {
   } catch (error) {
     console.error('Error listing files:', error);
     
+    // If this is a simulated server error, re-throw it so Lambda counts it
+    if (error.message && error.message.includes('Simulated server error')) {
+      throw error;
+    }
+    
     // If bucket doesn't exist, return empty list (success)
     if (error.name === 'NoSuchBucket') {
       return {
@@ -122,7 +129,8 @@ exports.getFiles = async (event) => {
       };
     }
     
-    // Server error (5xx)
+    // Server error (5xx) - return 500 but Lambda won't count it as an error
+    // (only unhandled exceptions are counted)
     return {
       statusCode: 500,
       headers: {
