@@ -17,13 +17,62 @@ const BUCKET_NAME = process.env.BUCKET_NAME || 'poc-lambda-bucket';
 const SNS_TOPIC_ARN = process.env.SNS_TOPIC_ARN || '';
 
 /**
+ * Helper function to simulate random delay
+ */
+const randomDelay = (min, max) => {
+  return new Promise(resolve => {
+    const delay = Math.floor(Math.random() * (max - min + 1)) + min;
+    setTimeout(resolve, delay);
+  });
+};
+
+/**
  * GET /files - Get list of files from S3
  * This is the REST endpoint function
+ * Returns various response types with random execution times for testing metrics
  */
 exports.getFiles = async (event) => {
   console.log('GET /files - Request:', JSON.stringify(event, null, 2));
   
+  // Generate random scenario for testing different metrics
+  // 70% success, 20% 4xx errors, 10% 5xx errors
+  const random = Math.random();
+  const scenario = random < 0.7 ? 'success' : random < 0.9 ? 'client_error' : 'server_error';
+  
+  // Random execution time: 10ms to 500ms for success, 5ms to 100ms for errors
+  const delay = scenario === 'success' 
+    ? Math.floor(Math.random() * 490) + 10  // 10-500ms
+    : Math.floor(Math.random() * 95) + 5;    // 5-100ms
+  
+  await randomDelay(delay, delay);
+  
   try {
+    // Simulate different scenarios
+    if (scenario === 'client_error') {
+      // 4xx error - Bad Request (return HTTP error, not Lambda exception)
+      // This will show up in API Gateway 4XXError metric, not Lambda Errors
+      const errorType = Math.random() < 0.5 ? 400 : 404;
+      return {
+        statusCode: errorType,
+        headers: {
+          'Content-Type': 'application/json',
+          'Access-Control-Allow-Origin': '*'
+        },
+        body: JSON.stringify({
+          success: false,
+          error: errorType === 400 ? 'Bad Request' : 'Not Found',
+          message: `Simulated ${errorType} error for testing`
+        })
+      };
+    }
+    
+    if (scenario === 'server_error') {
+      // 5xx error - Internal Server Error
+      // Throw exception to generate Lambda Error metric AND API Gateway 5XXError
+      throw new Error('Simulated server error for testing');
+    }
+    
+    // Success scenario - try to get files from S3
     const command = new ListObjectsV2Command({
       Bucket: BUCKET_NAME,
       MaxKeys: 100
@@ -48,13 +97,14 @@ exports.getFiles = async (event) => {
         success: true,
         data: files,
         count: files.length,
-        bucket: BUCKET_NAME
+        bucket: BUCKET_NAME,
+        executionTime: `${delay}ms`
       })
     };
   } catch (error) {
     console.error('Error listing files:', error);
     
-    // If bucket doesn't exist, return empty list
+    // If bucket doesn't exist, return empty list (success)
     if (error.name === 'NoSuchBucket') {
       return {
         statusCode: 200,
@@ -66,11 +116,13 @@ exports.getFiles = async (event) => {
           success: true,
           data: [],
           count: 0,
-          message: 'Bucket does not exist yet'
+          message: 'Bucket does not exist yet',
+          executionTime: `${delay}ms`
         })
       };
     }
     
+    // Server error (5xx)
     return {
       statusCode: 500,
       headers: {
@@ -80,7 +132,8 @@ exports.getFiles = async (event) => {
       body: JSON.stringify({
         success: false,
         error: 'Failed to list files',
-        message: error.message
+        message: error.message,
+        executionTime: `${delay}ms`
       })
     };
   }
@@ -88,9 +141,22 @@ exports.getFiles = async (event) => {
 
 /**
  * Event-based function - Processes SNS/EventBridge events
+ * Returns various response types with random execution times for testing metrics
  */
 exports.processEvent = async (event) => {
   console.log('Event received:', JSON.stringify(event, null, 2));
+  
+  // Generate random scenario for testing different metrics
+  // 80% success, 20% errors
+  const random = Math.random();
+  const scenario = random < 0.8 ? 'success' : 'error';
+  
+  // Random execution time: 20ms to 300ms for success, 10ms to 200ms for errors
+  const delay = scenario === 'success'
+    ? Math.floor(Math.random() * 280) + 20  // 20-300ms
+    : Math.floor(Math.random() * 190) + 10; // 10-200ms
+  
+  await randomDelay(delay, delay);
   
   try {
     // Handle SNS event
@@ -100,13 +166,19 @@ exports.processEvent = async (event) => {
       
       console.log('Processing SNS message:', message);
       
+      // Simulate error scenario
+      if (scenario === 'error') {
+        throw new Error('Simulated event processing error for testing');
+      }
+      
       // Process the message
       const result = {
         eventType: 'sns',
         topicArn: snsRecord.TopicArn,
         messageId: snsRecord.MessageId,
         message: message,
-        processedAt: new Date().toISOString()
+        processedAt: new Date().toISOString(),
+        executionTime: `${delay}ms`
       };
       
       console.log('Event processed successfully:', result);
@@ -123,12 +195,18 @@ exports.processEvent = async (event) => {
     if (event.source && event['detail-type']) {
       console.log('Processing EventBridge event:', event);
       
+      // Simulate error scenario
+      if (scenario === 'error') {
+        throw new Error('Simulated event processing error for testing');
+      }
+      
       const result = {
         eventType: 'eventbridge',
         source: event.source,
         detailType: event['detail-type'],
         detail: event.detail,
-        processedAt: new Date().toISOString()
+        processedAt: new Date().toISOString(),
+        executionTime: `${delay}ms`
       };
       
       console.log('Event processed successfully:', result);
@@ -142,12 +220,17 @@ exports.processEvent = async (event) => {
     }
     
     // Handle direct invocation
+    if (scenario === 'error') {
+      throw new Error('Simulated event processing error for testing');
+    }
+    
     return {
       statusCode: 200,
       body: JSON.stringify({
         success: true,
         message: 'Event processed',
-        event: event
+        event: event,
+        executionTime: `${delay}ms`
       })
     };
   } catch (error) {
@@ -157,7 +240,8 @@ exports.processEvent = async (event) => {
       body: JSON.stringify({
         success: false,
         error: 'Failed to process event',
-        message: error.message
+        message: error.message,
+        executionTime: `${delay}ms`
       })
     };
   }
@@ -183,4 +267,3 @@ exports.handler = async (event, context) => {
   // Otherwise, treat as event-based invocation
   return await exports.processEvent(event);
 };
-
