@@ -23,7 +23,7 @@ jobs:
         run: npm install
       
       - name: Install Serverless Framework
-        run: npm install -g serverless
+        run: npm install -g serverless@3
       
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v2
@@ -35,6 +35,7 @@ jobs:
       - name: Deploy to AWS
         env:
           STAGE: ${{ secrets.STACK_PREFIX || 'dev' }}
+          SLS_DISABLE_AUTO_UPDATE: '1'
         run: |
           serverless deploy --stage $STAGE --verbose
       
